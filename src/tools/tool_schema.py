@@ -20,7 +20,7 @@ class SchemaBuilderGemini:
             'name': func.__name__,
             'description': '',
             'parameters': {
-                'type_': 'OBJECT', 
+                'type': 'OBJECT', 
                 'properties': {},
                 'required': []
             }
@@ -58,7 +58,7 @@ class SchemaBuilderGemini:
                 json_type = 'BOOLEAN'
                 
             self.schema['parameters']['properties'][name] = {
-                'type_': json_type,
+                'type': json_type,
                 'description': param_descriptions.get(name, '')
             }
             

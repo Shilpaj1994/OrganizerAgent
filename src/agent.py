@@ -12,12 +12,12 @@ from typing import Any
 # Third Party Imports
 
 # Local Imports
-from gemini_integration import GeminiIntegration
+from ai_models.gemini_integration import GeminiIntegration
+from ai_models.deepseek_integration import DeepSeekIntegration
+from ai_models.openai_integration import OpenAIIntegration
 from tools.system_tools.system_tools import list_directory_files, get_directory_name, organize_files
 from tools.tool_schema import create_schema
 from prompts.prompt import organizer_prompt
-
-
 
 class Agent:
     """
@@ -52,8 +52,8 @@ class Agent:
         """
         ai_providers = {
             "gemini": lambda: GeminiIntegration(tools),
-            # Add other providers as needed:
-            # "openai": lambda: OpenAIIntegration(tools),
+            "deepseek": lambda: DeepSeekIntegration(tools),
+            "openai": lambda: OpenAIIntegration(tools),
             # "anthropic": lambda: AnthropicIntegration(tools),
         }
 
@@ -147,7 +147,7 @@ if __name__ == "__main__":
         if not os.path.exists(path):
             raise FileNotFoundError(f"Directory not found: {path}")
             
-        agent = Agent()
+        agent = Agent(ai_provider="gemini")
         agent.process_response(path)
     except Exception as e:
         print(f"Error: {str(e)}")

@@ -15,7 +15,7 @@ import google.generativeai as genai
 from google.generativeai.types import FunctionDeclaration, Tool
 
 # Local Imports
-from ai_integration import AIIntegration
+from ai_models.ai_integration import AIIntegration
 
 
 class GeminiIntegration(AIIntegration):

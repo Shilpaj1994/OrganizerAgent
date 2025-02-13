@@ -13,9 +13,8 @@ from typing import Any
 
 # Local Imports
 from ai_models import GeminiIntegration, DeepSeekIntegration, OpenAIIntegration
-from tools.system_tools.system_tools import list_directory_files, get_directory_name, organize_files
-from tools.tool_schema import create_schema
-from prompts.prompt import organizer_prompt
+from tools import list_directory_files, get_directory_name, organize_files, compress_image, compress_pdf, create_schema
+from prompts import organizer_prompt
 
 
 class Agent:
@@ -106,6 +105,7 @@ class Agent:
             
             result = self.dispatch_function(function_call, path)
             print(f"Result of {function_call['name']}: {result}")
+            # print(f"Result of {function_call['name']}: {function_call}")
         except Exception as e:
             print(f"Error executing {function_call.get('name', 'unknown')}: {e}")
 

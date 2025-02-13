@@ -12,12 +12,11 @@ from typing import Any
 # Third Party Imports
 
 # Local Imports
-from ai_models.gemini_integration import GeminiIntegration
-from ai_models.deepseek_integration import DeepSeekIntegration
-from ai_models.openai_integration import OpenAIIntegration
+from ai_models import GeminiIntegration, DeepSeekIntegration, OpenAIIntegration
 from tools.system_tools.system_tools import list_directory_files, get_directory_name, organize_files
 from tools.tool_schema import create_schema
 from prompts.prompt import organizer_prompt
+
 
 class Agent:
     """

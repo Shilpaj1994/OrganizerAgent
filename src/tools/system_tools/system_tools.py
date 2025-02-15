@@ -6,194 +6,123 @@ Date: Feb 8, 2025
 """
 # Standard Library Imports
 import os
-import shutil
 from pathlib import Path
-import time
-
-# Third Party Imports
-from tqdm import tqdm
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
+import shutil
+from typing import Dict, List, Set
 
 
-def process_todo(todo_path):
-    with open(todo_path, 'r') as f:
-        for line in f:
-            if 'Remind me to' in line:
-                _handle_reminder(line)
-            elif 'Add a calendar invite' in line:
-                _handle_calendar(line)
-            elif 'Share the stock price' in line:
-                _schedule_stock_updates(line)
-
-def compress_pdf(pdf_path):
-    # Integration with PDF compression API
-    pass
-
-def compress_image(image_path):
-    # Integration with image compression API
-    pass
-
-def _handle_reminder(task_line):
-    # Email sending logic using SMTP
-    pass
-
-def _handle_calendar(task_line):
-    # Calendar API integration
-    pass
-
-def _schedule_stock_updates(task_line):
-    # Stock data scheduling logic
-    pass
-
-
-
-
-
-def get_directory_name() -> str:
+def get_directory_name(default_path: str="/media/shilpaj/2A42A8EC42A8BDC7/Udacity/EPAi/Agent/experiments") -> str:
     """
     Tool to get the directory name from the user.
+    :param default_path: The default path to the directory to organize
     :return: The directory name
     """
-    directory_name = input("Enter the directory name: ")
-    return directory_name
+    path = input("Enter the path to the directory to organize (default: current directory): ") or default_path
+    return path
 
-
-def list_directory_files(path: str) -> list:
+def scan_directory(path: str) -> List[str]:
     """
-    Tool to list all the files in the directory.
-    :param path: Directory location on the local system
-    :returns: List of files in the directory
+    Scans a directory and returns a list of all files (excluding directories)
+    :param path: Path to the directory to scan
+    :return: List of file paths
     """
     try:
-        dir_path = Path(path)
-        if not dir_path.exists() or not dir_path.is_dir():
-            return []
-        return [f.name for f in dir_path.iterdir() if f.is_file()]
+        files = []
+        # Walk through directory
+        for root, _, filenames in os.walk(path):
+            for filename in filenames:
+                # Get full file path
+                file_path = os.path.join(root, filename)
+                # Only include files, not directories
+                if os.path.isfile(file_path):
+                    files.append(file_path)
+        return files
     except Exception as e:
-        print(f"Error: {str(e)}")
+        print(f"Error scanning directory: {str(e)}")
         return []
 
 
-def make_copy_of_file(file_path: str, new_file_path: str) -> bool:
+def identify_file_types(file_paths: List[str]) -> Dict[str, List[str]]:
     """
-    Tool to make a copy of a file.
-    :param file_path: Path to the file to be copied
-    :param new_file_path: Path to the new file
-    :returns: True if the file is copied successfully, False otherwise
+    Identifies and categorizes files based on their extensions
+    :param file_paths: List of file paths to categorize
+    :return: Dictionary mapping categories to lists of file paths
     """
+    # File extension categories
+    categories = {
+        'documents': {'.pdf', '.docx', '.txt', '.drawio', '.doc', '.rtf', '.odt', '.tex', '.md', '.pages'},
+        'spreadsheets': {'.xlsx', '.xls', '.csv', '.ods', '.numbers', '.tsv', '.gsheet'},
+        'presentations': {'.ppt', '.pptx', '.key', '.odp', '.gslides'},
+        'images': {'.jpg', '.png', '.gif', '.jpeg', '.bmp', '.tiff', '.ico', '.webp', '.svg', '.psd', '.ai'},
+        'code': {'.py', '.js', '.html', '.css', '.json', '.pyc', '.h', '.cpp', '.c', '.java', '.go', '.rs'},
+        'archives': {'.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.xz', '.iso', '.dmg'},
+        'audio': {'.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg', '.wma', '.aiff'},
+        'video': {'.mp4', '.mov', '.avi', '.mkv', '.wmv', '.flv', '.webm', '.m4v'},
+        'notebooks': {'.ipynb'}
+    }
+
+    # Initialize result dictionary
+    categorized_files = {category: [] for category in categories}
+    categorized_files['others'] = []  # For unrecognized file types
+
     try:
-        shutil.copy(file_path, new_file_path)
-        return True
-    except Exception as e:
-        print(f"Error: {str(e)}")
-        return False
-
-
-class FileOrganizer(FileSystemEventHandler):
-    def __init__(self, watch_folder):
-        self.watch_folder = watch_folder
-        self.categories = {
-            'documents': ['.pdf', '.docx', '.txt', '.drawio', '.doc', '.rtf', '.odt', '.tex', '.md', '.pages', '.epub', '.djvu'],
-            'spreadsheets': ['.xlsx', '.xls', '.csv', '.ods', '.numbers', '.tsv', '.gsheet'],
-            'presentations': ['.ppt', '.pptx', '.key', '.odp', '.gslides'],
-            'images': ['.jpg', '.png', '.gif', '.jpeg', '.bmp', '.tiff', '.ico', '.webp', '.svg', '.psd', '.ai', '.eps', '.raw', '.cr2', '.nef', '.heic', '.avif'],
-            'code': ['.py', '.js', '.html', '.css', '.json', '.pyc', '.h', '.cpp', '.c', '.java', '.go', '.rs', '.rb', '.php', '.swift', '.kt', '.ts', '.jsx', '.vue', '.sql', '.r', '.m', '.scala', '.dart'],
-            'archives': ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.xz', '.iso', '.dmg'],
-            'notebooks': ['.ipynb', '.rmd', '.zmd'],
-            'audio': ['.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg', '.wma', '.aiff', '.opus'],
-            'video': ['.mp4', '.mov', '.avi', '.mkv', '.wmv', '.flv', '.webm', '.m4v', '.mpeg', '.3gp'],
-            'databases': ['.db', '.sqlite', '.sqlite3', '.mdb', '.accdb', '.sql'],
-            'fonts': ['.ttf', '.otf', '.woff', '.woff2', '.eot'],
-            'ebooks': ['.epub', '.mobi', '.azw', '.azw3', '.fb2', '.lit'],
-            'cad': ['.dwg', '.dxf', '.stl', '.obj', '.fbx', '.blend'],
-            'executables': ['.exe', '.msi', '.app', '.dmg', '.deb', '.rpm']
-        }
-        # Process existing files when starting
-        self.process_existing_files()
-        
-    def process_existing_files(self):
-        """Process all existing files in the watch folder"""
-        print("Processing existing files...")
-        for item in tqdm(os.listdir(self.watch_folder), desc="Processing existing files"):
-            file_path = os.path.join(self.watch_folder, item)
-            if os.path.isfile(file_path):
-                if item == 'todo.txt':
-                    process_todo(file_path)
-                else:
-                    self._categorize_file(file_path)
-    
-    def on_created(self, event):
-        """Handle new file creation events"""
-        if not event.is_directory:
-            print(f"New file detected: {event.src_path}")
-            filename = os.path.basename(event.src_path)
-            if filename == 'todo.txt':
-                process_todo(event.src_path)
-            else:
-                self._categorize_file(event.src_path)
-    
-    def _categorize_file(self, file_path):
-        try:
-            if not os.path.exists(file_path):  # File might have been moved already
-                return
-                
+        for file_path in file_paths:
             file_ext = Path(file_path).suffix.lower()
             
-            # Don't process files that are already in category folders
-            parent_dir = os.path.basename(os.path.dirname(file_path))
-            if parent_dir in self.categories:
-                return
-                
-            for category, extensions in self.categories.items():
+            # Find matching category
+            matched = False
+            for category, extensions in categories.items():
                 if file_ext in extensions:
-                    print(f"Moving {file_path} to {category} folder")
-                    dest_dir = os.path.join(self.watch_folder, category)
-                    os.makedirs(dest_dir, exist_ok=True)
-                    
-                    dest_path = os.path.join(dest_dir, os.path.basename(file_path))
-                    # Handle case where file already exists in destination
-                    if os.path.exists(dest_path):
-                        base, ext = os.path.splitext(dest_path)
-                        counter = 1
-                        while os.path.exists(f"{base}_{counter}{ext}"):
-                            counter += 1
-                        dest_path = f"{base}_{counter}{ext}"
-                    
-                    shutil.move(file_path, dest_path)
-                    print(f"Moved {file_path} to {dest_path}")
-                    
-                    # Handle compression for supported formats
-                    try:
-                        if file_ext == '.pdf':
-                            compress_pdf(dest_path)
-                        elif file_ext in ['.jpg', '.png']:
-                            compress_image(dest_path)
-                    except Exception as e:
-                        print(f"Compression error for {file_path}: {str(e)}")
+                    categorized_files[category].append(file_path)
+                    matched = True
                     break
-        except Exception as e:
-            print(f"Error categorizing {file_path}: {str(e)}")
+            
+            # If no category matched, add to others
+            if not matched:
+                categorized_files['others'].append(file_path)
+
+        return categorized_files
+    except Exception as e:
+        print(f"Error identifying file types: {str(e)}")
+        return categorized_files
 
 
-def organize_files(path: str) -> bool:
+def organize_files_by_type(categorized_files: Dict[str, List[str]], destination_path: str) -> bool:
     """
-    Tool to organize the files in the directory.
-    :param path: Directory location on the local system
-    :returns: True if the files are organized successfully, False otherwise
+    Moves files into their respective category folders
+    :param categorized_files: Dictionary mapping categories to lists of file paths
+    :param destination_path: Base path where category folders will be created
+    :return: True if successful, False otherwise
     """
     try:
-        print(f"Starting file organization for: {path}")
-        observer = Observer()
-        event_handler = FileOrganizer(path)
-        observer.schedule(event_handler, path, recursive=False)  # Changed to non-recursive
-        observer.start()
-        print("Watching for new files...")
-        
-        observer.stop()
-        observer.join()
-        
+        for category, files in categorized_files.items():
+            if not files:  # Skip empty categories
+                continue
+
+            # Create category folder
+            category_path = os.path.join(destination_path, category)
+            os.makedirs(category_path, exist_ok=True)
+
+            # Move files to category folder
+            for file_path in files:
+                # Get filename without path
+                filename = os.path.basename(file_path)
+                # Create destination path
+                dest_path = os.path.join(category_path, filename)
+
+                # Handle duplicate filenames
+                if os.path.exists(dest_path):
+                    base, ext = os.path.splitext(filename)
+                    counter = 1
+                    while os.path.exists(os.path.join(category_path, f"{base}_{counter}{ext}")):
+                        counter += 1
+                    dest_path = os.path.join(category_path, f"{base}_{counter}{ext}")
+
+                # Move the file
+                shutil.move(file_path, dest_path)
+                print(f"Moved {filename} to {category} folder")
+
         return True
     except Exception as e:
-        print(f"Error: {str(e)}")
+        print(f"Error organizing files: {str(e)}")
         return False

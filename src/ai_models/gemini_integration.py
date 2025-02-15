@@ -8,7 +8,6 @@ Date: 2025-02-08
 # Standard Library Imports
 import os
 from collections import OrderedDict
-from datetime import datetime
 
 # Third Party Imports
 import google.generativeai as genai
@@ -39,58 +38,87 @@ class GeminiIntegration(AIIntegration):
 
     def generate_response(self, prompt: str) -> str:
         """
-        Method to generate response from Gemini API
-        :param prompt: Input prompt
-        :return: Gemini response
+        Generates a response from the Gemini API.
+        :param prompt: The input prompt.
+        :return: The Gemini response, or None on error.
         """
         try:
-            response = self.model.generate_content(prompt)
+            # Try slightly different generation parameters
+            generation_config = {
+                "temperature": 0.2,  # Slightly more creative
+                "top_p": 0.9,
+                "top_k": 40,
+                "max_output_tokens": 2048,
+            }
+
+            response = self.model.generate_content(
+                prompt,
+                generation_config=generation_config,
+                stream=False
+            )
+
+            if not response.candidates[0].content.parts:
+                raise ValueError("Empty response received")
+
             return response
         except Exception as e:
             print(f"API Error: {str(e)}")
+            return None
 
     def extract_function_call(self, response: str) -> OrderedDict:
         """
-        Method to take the response, extract all the function calls with arguments and return an ordered dict of function calls
-        :param response: Response from Gemini API
-        :return: OrderedDict containing function call details to preserve call sequence
+        Extracts function calls from the Gemini API response.  Handles both
+        'function_call' objects and text-based function calls.  Robustly
+        handles extra text or newlines.
+
+        :param response: The response from the Gemini API.
+        :return: An OrderedDict containing function call details, preserving order.
         """
-        # Create an OrderedDict to store function calls
         ordered_function_calls = OrderedDict()
 
-        # Get the text content from response
-        text_content = response.candidates[0].content.parts[0].text
-        
-        # Split into individual function calls
-        function_calls = text_content.strip().split('\n')
-        
-        for call in function_calls:
-            try:
-                # Extract function name and arguments string
-                name = call[:call.index('(')]
-                args_str = call[call.index('(')+1:call.rindex(')')]
-                
-                # Parse arguments
-                args = {}
-                for arg in args_str.split(','):
-                    if '=' in arg:
-                        key, value = arg.split('=')
-                        # Clean up the values
-                        key = key.strip()
-                        value = value.strip().strip("'\"")
-                        args[key] = value
-                
-                # Create function call dict
-                function_call = OrderedDict([
-                    ('name', name),
-                    ('args', args)
-                ])
-                
-                # Add to ordered dict with index to preserve sequence
-                ordered_function_calls[str(len(ordered_function_calls))] = function_call
-                
-            except Exception as e:
-                print(f"Error parsing function call {call}: {str(e)}")
-                continue
-        
-        return ordered_function_calls
+        try:
+            for candidate in response.candidates:
+                for part_index, part in enumerate(candidate.content.parts):
+                    if hasattr(part, 'function_call') and part.function_call:
+                        function_call = OrderedDict([
+                            ('name', part.function_call.name),
+                            ('args', dict(part.function_call.args))  # Convert to dict
+                        ])
+                        ordered_function_calls[str(len(ordered_function_calls))] = function_call
+
+                    elif hasattr(part, 'text') and part.text:
+                        # Robustly handle text-based function calls
+                        lines = part.text.strip().split('\n')
+                        for line in lines:
+                            line = line.strip()
+                            if not line:  # Skip empty lines
+                                continue
+                            if '(' not in line or ')' not in line:
+                                print(f"Skipping invalid line: '{line}'")
+                                continue
+
+                            try:
+                                name = line[:line.index('(')].strip()
+                                args_str = line[line.index('(') + 1:line.rindex(')')]
+                                args = {}
+                                for arg_pair in args_str.split(','):
+                                    arg_pair = arg_pair.strip()
+                                    if not arg_pair or '=' not in arg_pair:
+                                        continue
+                                    key, value = arg_pair.split('=', 1)
+                                    key = key.strip().strip("'\"")
+                                    value = value.strip().strip("'\"")
+                                    args[key] = value
+
+                                function_call = OrderedDict([('name', name), ('args', args)])
+                                ordered_function_calls[str(len(ordered_function_calls))] = function_call
+
+                            except (ValueError, IndexError) as e:
+                                print(f"Error parsing: '{line}' - {e}")
+                                continue
+
+            return ordered_function_calls
+
+        except Exception as e:
+            print(f"Error extracting function calls: {e}")
+            return OrderedDict()

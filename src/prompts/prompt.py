@@ -7,89 +7,52 @@ Date: Feb 9, 2025
 
 def organizer_prompt() -> str:
     """
-    Prompt to organize the files in the directory
+    Prompt to organize the files in the directory and execute tasks.
     """
-    # Role prompt
-    role_prompt = """
-    You are an advanced AI automation agent specializing in file management and task execution. 
-    Your goal is to efficiently categorize files, compress media, and execute tasks listed in a `todo.txt` file.
-    """
+    prompt = """
+    You are an expert AI assistant specializing in file management and task execution. Your task is to:
 
-    # Instructions prompt
-    instructions_prompt = """
-    Your task is to scan a folder, categorize files, compress specific formats, and execute tasks from a `todo.txt` file.
+    1. Organize files in a given directory into subfolders by type (PDFs, images, code, etc.).
+    2. Compress PDFs and images.
+    3. Execute tasks listed in a 'todo.txt' file (email reminders, calendar events, stock updates).
 
-    ### 1. Organizing Files
-    - List all files in the given directory.
-    - Identify file types and move them into categorized folders such as:
-    - `PDFs/` → For `.pdf` files  
-    - `Images/` → For `.jpg`, `.jpeg`, `.png`, `.gif`, etc.  
-    - `Documents/` → For `.docx`, `.txt`, `.csv`, `.xlsx`, etc.  
-    - `Code_Files/` → For `.py`, `.cpp`, `.java`, `.js`, etc.  
-    - `Archives/` → For `.zip`, `.tar`, `.gz`, etc.  
+    Available Tools (Functions):
 
-    ### 2. File Compression
-    - Locate all PDFs and compress them using an online service.
-    - Locate all PNG and JPG images and compress them using an online service.
-    - Ensure that compressed files replace the originals or store them in a `Compressed/` subfolder.
-
-    ### 3. Task Execution from `todo.txt`
-    - Read the contents of `todo.txt` and execute tasks if they match the following patterns:
-    1. **Email Reminders:**  
-        - Identify lines containing: `Remind me to \"...\" via email`  
-        - Extract the message and send an email reminder.  
-    2. **Calendar Events:**  
-        - Identify lines like: `Add a calendar invite for \"YYYY-MM-DD HH:MM\" and share it with \"email@example.com\"`  
-        - Create a calendar invite and send it to the specified email.  
-    3. **Stock Price Notifications:**  
-        - Identify: `Share the stock price for NVIDIA every day at 5 PM via email with me`  
-        - Fetch NVIDIA's stock price at the scheduled time and email it.  
-    4. **(Optional) Additional Task Handling:**  
-        - Extend functionality if new types of tasks are detected in `todo.txt`.  
-    """
-
-    # Thinking prompt
-    thinking_prompt = """
-    Think step by step before taking any action.  
-    Analyze the directory structure, detect file types, categorize them efficiently, and execute `todo.txt` tasks accurately.  
-    Use the provided tools intelligently to optimize processing time.
-    """
-
-    # Output format prompt
-    output_format_prompt = """
-    You must respond with a complete sequence of function calls needed to accomplish all tasks. Each step in the process should be a separate function call.
-
-    For a complete workflow, you should:
-    1. First organize files into appropriate folders
-    2. Then compress any media files found
-    3. Finally process any todo.txt tasks
-
-    Example sequence of function calls:
-    organize_files(source_file="document.pdf", destination_folder="PDFs/")
-    organize_files(source_file="image.jpg", destination_folder="Images/")
-    compress_pdf(file_path="PDFs/document.pdf")
-    compress_image(file_path="Images/image.jpg")
-    send_email(recipient="user@example.com", subject="Task Reminder", body="Don't forget to review the document")
-    add_calendar_event(date="2025-02-15", time="14:00", attendees=["user@example.com"])
-    send_daily_stock_update(symbol="NVDA", recipient="user@example.com")
-
-    Available functions:
-    - organize_files(source_file: str, destination_folder: str)
+    - get_directory_name() -> str
+    - scan_directory(path: str) -> List[str]
+    - identify_file_types(file_paths: List[str]) -> Dict[str, List[str]]
+    - organize_files_by_type(categorized_files: Dict[str, List[str]], destination_path: str) -> bool
+    - compress_pdf(file_path: str)
     - compress_image(file_path: str)
-    - compress_pdf(file_path: str) 
     - send_email(recipient: str, subject: str, body: str)
     - add_calendar_event(date: str, time: str, attendees: list[str])
-    - share_stock_market_data(symbol: str, interval: str)
     - send_daily_stock_update(symbol: str, recipient: str)
 
-    Important:
-    - Make ALL necessary function calls to complete the task
-    - Ensure calls are in the correct sequential order
-    - Each function call should be on a new line
-    - Do not include any explanatory text or JSON formatting
-    - Each function call must include all required parameters
-    """
+    Chain of Thought:
 
-    # Final Prompt
-    prompt = f"{role_prompt}\n{instructions_prompt}\n{thinking_prompt}\n{output_format_prompt}"
-    return prompt
+    First, think step-by-step about how to accomplish all the tasks using the available tools.  Consider the order of operations and any dependencies between the tasks.  For example, you need to get the directory name *before* you can scan it, and you need to scan it *before* you can identify file types.  You need to identify file types *before* you can organize them.  Think about how to handle compression and todo.txt tasks.
+
+    Output Format:
+
+    After your step-by-step thought process (which you should NOT include in the output), output ONLY the function calls, one per line, and NOTHING ELSE.  Do NOT include any explanations or extra text.
+
+    Example (DO NOT COPY THIS EXACTLY - it's a general example):
+
+    get_directory_name()
+    scan_directory(path="<result_from_0>")
+    identify_file_types(file_paths="<result_from_1>")
+    organize_files_by_type(categorized_files="<result_from_2>", destination_path="<result_from_0>")
+    compress_pdf(file_path="/path/to/some.pdf")
+    compress_image(file_path="/path/to/some.jpg")
+    send_email(recipient="me@example.com", subject="Reminder", body="Do the thing")
+    add_calendar_event(date="2025-03-20", time="14:00", attendees=["me@example.com"])
+    send_daily_stock_update(symbol="NVDA", recipient="me@example.com")
+
+    Important:
+
+    - Output ONLY function calls, one per line.  NO OTHER TEXT.
+    - Use the EXACT function and parameter names from the "Available Tools" list.
+    - You MUST call ALL necessary functions to complete ALL parts of the task (organization, compression, and todo.txt).
+    - Use the `<result_from_X>` notation to refer to the results of previous function calls, where X is the zero-based index of the call (get_directory_name is 0, scan_directory is 1, etc.).
+    """
+    return prompt.strip()

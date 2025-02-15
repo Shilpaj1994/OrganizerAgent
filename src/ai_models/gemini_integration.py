@@ -22,11 +22,11 @@ class GeminiIntegration(AIIntegration):
     """
     Class to call Gemini API and get the response
     """
-    def __init__(self, tools: list, model_name: str = 'gemini-pro'):
+    def __init__(self, tools: list, model_name: str = 'gemini-2.0-flash-exp'):
         """
         Constructor for GeminiIntegration class
         :param tools: List of tools to use
-        :param model_name: Name of the Gemini model to use [default: gemini-pro] [options: gemini-1.5-flash, gemini-1.5-pro, gemini-1.5-pro-exp-0801]
+        :param model_name: Name of the Gemini model to use [default: gemini-2.0-flash-exp] [options: gemini-1.5-flash, gemini-1.5-pro, gemini-1.5-pro-exp-0801]
         """
         # Configure Gemini API
         genai.configure(api_key=os.getenv("GEMINI_API_KEY"))    # Store API key in .env file OR use `export GEMINI_API_KEY=<your_api_key>`
@@ -55,12 +55,20 @@ class GeminiIntegration(AIIntegration):
         :param response: Response from Gemini API
         :return: OrderedDict containing function call details to preserve call sequence
         """
+        # Create an OrderedDict to store function calls
+        ordered_function_calls = OrderedDict()
+
         # Extract the function calls from the response
-        function_call = response.candidates[0].content.parts[0].function_call
+        for part in response.candidates[0].content.parts:
+            if part.function_call:
+                function_call = part.function_call
+                # Create an OrderedDict with function call details
+                ordered_function_call = OrderedDict([
+                    ('name', function_call.name),
+                    ('args', function_call.args)
+                ])
+
+                # Append to the main OrderedDict
+                ordered_function_calls[function_call.name] = ordered_function_call
         
-        # Create an OrderedDict with function call details
-        ordered_function_call = OrderedDict([
-            ('name', function_call.name),
-            ('args', function_call.args)
-        ])
-        return ordered_function_call
+        return ordered_function_calls

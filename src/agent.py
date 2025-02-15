@@ -13,7 +13,7 @@ from typing import Any
 
 # Local Imports
 from ai_models import GeminiIntegration, DeepSeekIntegration, OpenAIIntegration
-from tools import list_directory_files, get_directory_name, organize_files, compress_image, compress_pdf, create_schema
+from tools import list_directory_files, get_directory_name, organize_files, compress_image, compress_pdf, create_schema, send_email, add_calendar_event, share_stock_market_data, send_daily_stock_update
 from prompts import organizer_prompt
 
 
@@ -38,7 +38,15 @@ class Agent:
         """
         # Create Tool wrappers with function declarations
         tools = [
-            create_schema(organize_files)
+            create_schema(organize_files),
+            create_schema(compress_image),
+            create_schema(compress_pdf),
+            create_schema(send_email),
+            create_schema(add_calendar_event),
+            create_schema(share_stock_market_data),
+            create_schema(send_daily_stock_update)
+            # create_schema(list_directory_files),
+            # create_schema(get_directory_name)
         ]
         return tools
 
@@ -103,9 +111,9 @@ class Agent:
             if not all(key in function_call for key in ['name', 'args']):
                 raise KeyError("Function call missing required keys: 'name' and 'args'")
             
-            result = self.dispatch_function(function_call, path)
-            print(f"Result of {function_call['name']}: {result}")
-            # print(f"Result of {function_call['name']}: {function_call}")
+            # result = self.dispatch_function(function_call, path)
+            # print(f"Result of {function_call['name']}: {result}")
+            print(f"Result of {function_call['name']}: {function_call}")
         except Exception as e:
             print(f"Error executing {function_call.get('name', 'unknown')}: {e}")
 
@@ -121,6 +129,12 @@ class Agent:
         function_map = {
             "list_directory_files": list_directory_files,
             "organize_files": organize_files,
+            "compress_image": compress_image,
+            "compress_pdf": compress_pdf,
+            "send_email": send_email,
+            "add_calendar_event": add_calendar_event,
+            "share_stock_market_data": share_stock_market_data,
+            "send_daily_stock_update": send_daily_stock_update
             # Add more mappings here as you add more tools
         }
 

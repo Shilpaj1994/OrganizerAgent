@@ -6,7 +6,6 @@ Date: Feb 10, 2025
 """
 # Standard Library Imports
 import os
-import requests
 from typing import Optional
 from pathlib import Path
 import yfinance as yf
@@ -20,89 +19,85 @@ from datetime import datetime
 import base64
 import time
 
+# Third-party imports
+import convertapi
+
 
 def compress_pdf(file_path: str) -> bool:
-    api_key = os.getenv('ILOVEPDF_API_KEY')
-    if not api_key:
-        print("Error: ILOVEPDF_API_KEY is not set.")
-        return False
+    """
+    Compresses a PDF file using ConvertAPI.
 
-    # 1. Start the session
-    session_url = "https://api.ilovepdf.com/v1/start/compress"
-    response = requests.post(session_url, json={"public_key": api_key})
+    :param file_path: The path to the PDF file.
+    :return: True if compression was successful, False otherwise.
+    """
+    try:
+        # Ensure API key is set
+        convertapi.api_credentials = os.getenv('CONVERT_API_KEY')
+        if not convertapi.api_credentials:
+            raise ValueError("Error: CONVERT_API_KEY environment variable not set!")
 
-    if response.status_code != 200:
-        print(f"Error starting session: {response.text}")
-        return False
+        if not file_path:
+            raise ValueError("Error: file_path is None or empty!")
 
-    task = response.json().get("task")
+        # Perform the compression
+        result = convertapi.convert('compress', {
+            'File': str(file_path)
+        }, from_format='pdf')
 
-    # 2. Upload the file
-    upload_url = "https://api.ilovepdf.com/v1/upload"
-    with open(file_path, "rb") as file:
-        files = {"file": file}
-        response = requests.post(upload_url, data={"task": task}, files=files)
+        if not result or not result.files:
+            raise ValueError("Conversion failed, no output files received.")
 
-    if response.status_code != 200:
-        print(f"Error uploading file: {response.text}")
-        return False
+        # Save to a new file with '_compressed' suffix
+        output_path = str(Path(file_path).with_suffix('')) + '_compressed' + Path(file_path).suffix
+        output_files = result.save_files(output_path)
 
-    file_server_name = response.json()["server_filename"]
-
-    # 3. Process compression
-    process_url = "https://api.ilovepdf.com/v1/process"
-    process_data = {
-        "task": task,
-        "server_filename": file_server_name,
-        "output_filename": Path(file_path).name,
-    }
-    response = requests.post(process_url, data=process_data)
-
-    if response.status_code != 200:
-        print(f"Error processing file: {response.text}")
-        return False
-
-    # 4. Download compressed file
-    download_url = response.json()["download_url"]
-    compressed_response = requests.get(download_url)
-
-    if compressed_response.status_code == 200:
-        with open(file_path, "wb") as f:
-            f.write(compressed_response.content)
+        if not output_files:
+            raise ValueError("Failed to save the compressed PDF.")
         return True
-    else:
-        print(f"Error downloading file: {compressed_response.text}")
-        return False
 
+    except Exception as e:
+        print(f"Error compressing PDF: {e}")
+        return False
 
 
 def compress_image(file_path: str) -> bool:
     """
-    Method which uses ILovePDF API to compress an image file
-    :param file_path: Path to the image file to compress
-    :return: True if the image is compressed successfully, False otherwise
+    Compresses an image file using ConvertAPI.
+    :param file_path: The path to the image file.
+    :return: True if compression was successful, False otherwise.
     """
-    api_url = "https://api.tinify.com/shrink"
-    api_key = os.getenv('ILOVEPDF_API_KEY')  # Replace with your API key
-    
     try:
-        with open(file_path, "rb") as file:
-            response = requests.post(api_url, auth=("api", api_key), files={"file": file})
-            
-        if response.status_code == 201:
-            result_url = response.json()["output"]["url"]
-            compressed_file_path = file_path  # Overwrite the original file
-            
-            # Download the compressed image
-            compressed_response = requests.get(result_url)
-            with open(compressed_file_path, "wb") as f:
-                f.write(compressed_response.content)
-            return True
-        else:
-            print("Compression failed:", response.text)
+        # Set API credentials
+        convertapi.api_credentials = os.getenv('CONVERT_API_KEY')
+        if not convertapi.api_credentials:
+            raise ValueError("Error: CONVERT_API_KEY environment variable not set!")
+
+        # Get file extension (without the dot)
+        file_ext = Path(file_path).suffix.lower()[1:]
+        
+        # Validate supported formats
+        supported_formats = ['jpg', 'jpeg', 'png', 'gif', 'webp']
+        if file_ext.lower() not in supported_formats:
+            print(f"Unsupported image format: {file_ext}")
             return False
+
+        # Convert using the same format for input and output
+        result = convertapi.convert(
+            file_ext,  # Output format same as input
+            {
+                'File': file_path,
+                'quality': 75  # Compression quality (1-100)
+            },
+            from_format=file_ext  # Input format
+        )
+
+        # Save to a new file with '_compressed' suffix
+        output_path = str(Path(file_path).with_suffix('')) + '_compressed' + Path(file_path).suffix
+        result.save_files(output_path)
+        return True
+
     except Exception as e:
-        print("Error compressing image:", e)
+        print(f"Error compressing image: {e}")
         return False
     
 
@@ -362,19 +357,4 @@ Note: All prices are in USD.
 
 
 if __name__ == "__main__":
-    # Test the PDF compression
-    test_pdf = Path("./dummy.pdf").resolve()
-    print(f"Using test file: {test_pdf}")
-    
-    if not test_pdf.exists():
-        print(f"Error: Create a test PDF first at {test_pdf}")
-        exit(1)
-    
-    if not os.getenv('ILOVEPDF_API_KEY'):
-        print("Error: Set ILOVEPDF_API_KEY first with:")
-        print("export ILOVEPDF_API_KEY='your_api_key'")
-        exit(1)
-    
-    # Run compression
-    success = compress_pdf(str(test_pdf))
-    print("Compression succeeded" if success else "Compression failed")
+    print(compress_image("/home/shilpaj/Desktop/IMG.PNG"))

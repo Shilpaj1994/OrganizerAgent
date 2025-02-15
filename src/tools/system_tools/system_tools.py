@@ -20,6 +20,7 @@ def get_directory_name(default_path: str="/media/shilpaj/2A42A8EC42A8BDC7/Udacit
     path = input("Enter the path to the directory to organize (default: current directory): ") or default_path
     return path
 
+
 def scan_directory(path: str) -> List[str]:
     """
     Scans a directory and returns a list of all files (excluding directories)

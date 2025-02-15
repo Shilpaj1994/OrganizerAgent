@@ -5,9 +5,12 @@ Author: Shilpaj Bhalerao
 Date: Feb 10, 2025
 """
 # Standard Library Imports
+import base64
 import os
-from typing import Optional
 from pathlib import Path
+from datetime import datetime
+
+# Third-party imports
 import yfinance as yf
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -15,9 +18,6 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from email.mime.text import MIMEText
 import pickle
-from datetime import datetime
-import base64
-import time
 
 # Third-party imports
 import convertapi
@@ -354,7 +354,3 @@ Note: All prices are in USD.
     except Exception as e:
         print(f"Error sending stock update: {str(e)}")
         return False
-
-
-if __name__ == "__main__":
-    print(compress_image("/home/shilpaj/Desktop/IMG.PNG"))

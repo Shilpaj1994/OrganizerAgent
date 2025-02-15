@@ -1,3 +1,3 @@
 from tools.tool_schema import create_schema
 from tools.system_tools.system_tools import list_directory_files, get_directory_name, organize_files
-from tools.internet_tools.internet_tools import compress_image, compress_pdf
+from tools.internet_tools.internet_tools import compress_image, compress_pdf, send_email, add_calendar_event, share_stock_market_data, send_daily_stock_update

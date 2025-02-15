@@ -58,17 +58,39 @@ class GeminiIntegration(AIIntegration):
         # Create an OrderedDict to store function calls
         ordered_function_calls = OrderedDict()
 
-        # Extract the function calls from the response
-        for part in response.candidates[0].content.parts:
-            if part.function_call:
-                function_call = part.function_call
-                # Create an OrderedDict with function call details
-                ordered_function_call = OrderedDict([
-                    ('name', function_call.name),
-                    ('args', function_call.args)
+        # Get the text content from response
+        text_content = response.candidates[0].content.parts[0].text
+        
+        # Split into individual function calls
+        function_calls = text_content.strip().split('\n')
+        
+        for call in function_calls:
+            try:
+                # Extract function name and arguments string
+                name = call[:call.index('(')]
+                args_str = call[call.index('(')+1:call.rindex(')')]
+                
+                # Parse arguments
+                args = {}
+                for arg in args_str.split(','):
+                    if '=' in arg:
+                        key, value = arg.split('=')
+                        # Clean up the values
+                        key = key.strip()
+                        value = value.strip().strip("'\"")
+                        args[key] = value
+                
+                # Create function call dict
+                function_call = OrderedDict([
+                    ('name', name),
+                    ('args', args)
                 ])
-
-                # Append to the main OrderedDict
-                ordered_function_calls[function_call.name] = ordered_function_call
+                
+                # Add to ordered dict with index to preserve sequence
+                ordered_function_calls[str(len(ordered_function_calls))] = function_call
+                
+            except Exception as e:
+                print(f"Error parsing function call {call}: {str(e)}")
+                continue
         
         return ordered_function_calls

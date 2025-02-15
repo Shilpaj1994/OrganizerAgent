@@ -92,30 +92,37 @@ class Agent:
             print(f"Response: {response}")
 
             # Extract and process function calls
-            function_call = self.ai_model.extract_function_call(response)
-            if not isinstance(function_call, OrderedDict):
-                raise TypeError(f"Expected OrderedDict, got {type(function_call)}")
+            function_calls = self.ai_model.extract_function_call(response)
+            if not isinstance(function_calls, OrderedDict):
+                raise TypeError(f"Expected OrderedDict, got {type(function_calls)}")
             
-            self.action(function_call, path)
+            self.action(function_calls, path)
 
         except Exception as e:
             print(f"Error in process_response: {str(e)}")
 
-    def action(self, function_call: OrderedDict, path: str) -> None:
+    def action(self, function_calls: OrderedDict, path: str) -> None:
         """
         Method to execute the code using a dispatcher.
-        :param function_call: OrderedDict containing function call details
+        :param function_calls: OrderedDict containing multiple function call details
         :param path: Path to the directory
         """
         try:
-            if not all(key in function_call for key in ['name', 'args']):
-                raise KeyError("Function call missing required keys: 'name' and 'args'")
-            
-            # result = self.dispatch_function(function_call, path)
-            # print(f"Result of {function_call['name']}: {result}")
-            print(f"Result of {function_call['name']}: {function_call}")
+            # Execute each function call in order
+            for call_id, function_call in function_calls.items():
+                if not all(key in function_call for key in ['name', 'args']):
+                    raise KeyError(f"Function call {call_id} missing required keys: 'name' and 'args'")
+                
+                # Add path to arguments if not present
+                if 'path' not in function_call['args']:
+                    function_call['args']['path'] = path
+                
+                # result = self.dispatch_function(function_call, path)
+                # print(f"Result of {function_call['name']}: {result}")
+                print(f"Function call: {function_call} with args: {function_call['args']}\n")
+                
         except Exception as e:
-            print(f"Error executing {function_call.get('name', 'unknown')}: {e}")
+            print(f"Error executing functions: {e}")
 
     def dispatch_function(self, function_call: OrderedDict, path: str) -> Any:
         """
@@ -135,7 +142,6 @@ class Agent:
             "add_calendar_event": add_calendar_event,
             "share_stock_market_data": share_stock_market_data,
             "send_daily_stock_update": send_daily_stock_update
-            # Add more mappings here as you add more tools
         }
 
         function_name = function_call['name']
@@ -144,11 +150,29 @@ class Agent:
 
         function_to_call = function_map[function_name]
         arguments = function_call['args']
-        print(f"\nArguments: {arguments}")
         
-        arguments['path'] = path
-        print(f"\nPath: {arguments['path']}")
-        return function_to_call(**arguments)
+        # Map argument names if needed
+        arg_mapping = {
+            'email_address': 'recipient',
+            'email_subject': 'subject',
+            'email_body': 'body',
+            'event_date': 'date',
+            'event_start_time': 'time',
+            'shared_with': 'attendees',
+            'stock_symbol': 'symbol'
+        }
+        
+        # Update argument names based on mapping
+        mapped_args = {}
+        for key, value in arguments.items():
+            mapped_key = arg_mapping.get(key, key)
+            mapped_args[mapped_key] = value
+            
+            # Convert string to list for attendees
+            if mapped_key == 'attendees' and isinstance(value, str):
+                mapped_args[mapped_key] = [value]
+
+        return function_to_call(**mapped_args)
 
 
 if __name__ == "__main__":

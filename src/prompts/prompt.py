@@ -57,12 +57,37 @@ def organizer_prompt() -> str:
 
     # Output format prompt
     output_format_prompt = """
-    Your response should generate **valid Python code** that:
-    1. Uses appropriate libraries for file handling (e.g., `os`, `shutil`, `pathlib`).
-    2. Includes API calls for PDF and image compression.
-    3. Integrates email and calendar APIs (e.g., SMTP, Google Calendar API).
-    4. Retrieves stock prices from a financial API (e.g., Yahoo Finance).
-    5. Is executable in a production environment with minimal modifications.
+    You must respond with a complete sequence of function calls needed to accomplish all tasks. Each step in the process should be a separate function call.
+
+    For a complete workflow, you should:
+    1. First organize files into appropriate folders
+    2. Then compress any media files found
+    3. Finally process any todo.txt tasks
+
+    Example sequence of function calls:
+    organize_files(source_file="document.pdf", destination_folder="PDFs/")
+    organize_files(source_file="image.jpg", destination_folder="Images/")
+    compress_pdf(file_path="PDFs/document.pdf")
+    compress_image(file_path="Images/image.jpg")
+    send_email(recipient="user@example.com", subject="Task Reminder", body="Don't forget to review the document")
+    add_calendar_event(date="2025-02-15", time="14:00", attendees=["user@example.com"])
+    send_daily_stock_update(symbol="NVDA", recipient="user@example.com")
+
+    Available functions:
+    - organize_files(source_file: str, destination_folder: str)
+    - compress_image(file_path: str)
+    - compress_pdf(file_path: str) 
+    - send_email(recipient: str, subject: str, body: str)
+    - add_calendar_event(date: str, time: str, attendees: list[str])
+    - share_stock_market_data(symbol: str, interval: str)
+    - send_daily_stock_update(symbol: str, recipient: str)
+
+    Important:
+    - Make ALL necessary function calls to complete the task
+    - Ensure calls are in the correct sequential order
+    - Each function call should be on a new line
+    - Do not include any explanatory text or JSON formatting
+    - Each function call must include all required parameters
     """
 
     # Final Prompt

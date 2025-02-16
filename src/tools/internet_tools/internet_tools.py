@@ -391,9 +391,9 @@ Note: All prices are in USD.
         }
 
 
-def schedule_mail(recipient: str, stock_symbol: str = "NVDA", scheduled_time: str = "17:00") -> bool:
+def schedule_daily_stock_update(recipient: str, stock_symbol: str = "NVDA", scheduled_time: str = "17:00") -> bool:
     """
-    Schedule a mail to be sent at a given time.
+    Schedule a daily stock update to be sent at a given time.
     :param recipient: Email address to send the update to
     :param stock_symbol: Symbol of the stock
     :param scheduled_time: Time to send the update (default: 17:00)

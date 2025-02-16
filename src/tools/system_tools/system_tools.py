@@ -8,7 +8,8 @@ Date: Feb 8, 2025
 import os
 from pathlib import Path
 import shutil
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Tuple
+from datetime import datetime
 
 
 def get_directory_name(default_path: str="/media/shilpaj/2A42A8EC42A8BDC7/Udacity/EPAi/Agent/experiments") -> str:
@@ -127,3 +128,105 @@ def organize_files_by_type(categorized_files: Dict[str, List[str]], destination_
     except Exception as e:
         print(f"Error organizing files: {str(e)}")
         return False
+
+
+def extract_info_from_todo(file_path: str) -> List[Tuple[str, Dict[str, str]]]:
+    """
+    Extracts actionable tasks from a todo.txt file.
+
+    :param file_path: Path to the todo.txt file.
+    :return: A list of tuples.  Each tuple contains:
+        - The function name (str) to call.
+        - A dictionary of arguments (str: str) for the function.
+    """
+    tasks = []
+    try:
+        with open(file_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                print("\n", line)
+                if not line:
+                    continue
+
+                # Email Reminder
+                if "Remind me to" in line and "via email" in line:
+                    print("Email Reminder")
+                    try:
+                        # Extract the reminder message
+                        reminder_text = line.split("Remind me to")[1].split("via email")[0].strip()
+                        task = {
+                            "recipient": "shilpajbhalerao1994@gmail.com",  # Default, can be overridden in todo.txt
+                            "subject": "Reminder",
+                            "body": reminder_text,
+                        }
+                        print(task)
+                        # Extract email address if specified
+                        if "via email to" in line:
+                            email_part = line.split("via email to")[1].split()[0].strip()
+                            if "@" in email_part:  # Basic validation that it looks like an email
+                                task["recipient"] = email_part
+
+                        tasks.append(("send_email", task))
+                    except Exception as e:
+                        print(f"Error parsing email reminder line: '{line}' - {e}")
+                        continue
+
+                # Calendar Event
+                elif "Add a calendar invite for" in line:
+                    print("Calendar Event")
+                    try:
+                        parts = line.split("for")[1].strip().split("and share it with")
+                        date_time_str = parts[0].strip().strip('"')
+                        attendees_str = parts[1].strip().strip('"') if len(parts) > 1 else ""
+                        print(f"parts: {parts}" )
+                        print(f"date_time_str: {date_time_str}")
+                        print(f"attendees_str: {attendees_str}")
+
+                        # Basic date/time parsing (you might need more robust parsing)
+                        date_time_obj = datetime.strptime(date_time_str, "%Y-%m-%d %H:%M")
+                        date_str = date_time_obj.strftime("%Y-%m-%d")
+                        time_str = date_time_obj.strftime("%H:%M")
+
+                        attendees = [a.strip() for a in attendees_str.split(",") if a.strip() and "@" in a]
+                        print(f"attendees: {attendees}")
+                        task = {
+                            "date": date_str,
+                            "time": time_str,
+                            "attendees": attendees,
+                        }
+                        print(f"task: {task}")
+                        tasks.append(("add_calendar_event", task))
+                    except Exception as e:
+                        print(f"Error parsing calendar invite line: '{line}' - {e}")
+                        continue
+
+                # Daily Stock Update
+                elif "Share the stock price for" in line and "every day at" in line:
+                    try:
+                        parts = line.split("for")[1].strip().split("every day at")
+                        symbol = parts[0].strip()
+                        time_str = parts[1].split("via email with")[0].strip()  # Extract time
+                        email = parts[1].split("with")[1].strip()
+
+                        # Basic time parsing (you might need more robust parsing)
+                        # We don't actually use the time here, but we parse it to validate the format
+                        datetime.strptime(time_str, "%I %p")
+
+                        task = {
+                            "symbol": symbol,
+                            "recipient": email,
+                        }
+                        tasks.append(("send_daily_stock_update", task))
+
+                    except Exception as e:
+                        print(f"Error parsing stock update line: '{line}' - {e}")
+                        continue
+        print(tasks)
+        return tasks
+
+    except FileNotFoundError:
+        print(f"Todo file not found: {file_path}")
+        return []
+    except Exception as e:
+        print(f"Error reading todo file: {e}")
+        return []

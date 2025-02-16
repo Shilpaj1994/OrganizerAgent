@@ -2,7 +2,7 @@
 """
 Gemini Integration
 Author: Shilpaj Bhalerao
-Date: 2025-02-08
+Date: Feb 08, 2025
 """
 
 # Standard Library Imports
@@ -75,6 +75,12 @@ class GeminiIntegration(AIIntegration):
         :return: An OrderedDict containing function call details, preserving order.
         """
         ordered_function_calls = OrderedDict()
+        valid_function_names = {
+            "get_directory_name", "scan_directory", "identify_file_types",
+            "organize_files_by_type", "compress_pdf", "compress_image",
+            "extract_info_from_todo", "send_email", "add_calendar_event",
+            "send_daily_stock_update"
+        }  # Add this set of valid names
 
         try:
             for candidate in response.candidates:
@@ -99,6 +105,15 @@ class GeminiIntegration(AIIntegration):
 
                             try:
                                 name = line[:line.index('(')].strip()
+                                # Remove 'default_api.' prefix if present
+                                if name.startswith("default_api."):
+                                    name = name[len("default_api."):]
+
+                                # Validate function name
+                                if name not in valid_function_names:
+                                    print(f"Skipping invalid function name: '{name}'")
+                                    continue
+
                                 args_str = line[line.index('(') + 1:line.rindex(')')]
                                 args = {}
                                 for arg_pair in args_str.split(','):

@@ -20,7 +20,9 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError  # Import HttpError
 from email.mime.text import MIMEText
+from dateutil import parser  # Import dateutil parser
 
 
 def compress_pdf(file_paths: Dict[str, List[str]]) -> bool:
@@ -145,166 +147,156 @@ def send_email(email_subject: str, email_body: str, recipient: str) -> bool:
     :return: True if the email is sent successfully, False otherwise
     """
     try:
+        # Construct absolute paths
+        credentials_path = Path(__file__).resolve().parent / 'credentials.json'
+        token_path = Path(__file__).resolve().parent / 'token.pickle'
+
         # Check if credentials.json exists
-        if not os.path.exists('credentials.json'):
-            print("Error: credentials.json file not found. Please follow the setup instructions.")
+        if not credentials_path.exists():
+            print(f"Error: credentials.json not found at {credentials_path}.")
             return False
 
-        SCOPES = ['https://www.googleapis.com/auth/gmail.send']
+        # Always use combined scopes
+        SCOPES = [
+            'https://www.googleapis.com/auth/gmail.send',
+            'https://www.googleapis.com/auth/calendar',  # Include Calendar!
+            'https://www.googleapis.com/auth/calendar.events'
+        ]
         creds = None
 
-        # The file token.pickle stores the user's access and refresh tokens
-        if os.path.exists('token.pickle'):
-            with open('token.pickle', 'rb') as token:
+        if token_path.exists():
+            with open(token_path, 'rb') as token:
                 creds = pickle.load(token)
 
-        # If there are no (valid) credentials available, let the user log in.
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
                 try:
                     creds.refresh(Request())
                 except Exception as e:
-                    print(f"Error refreshing credentials: {str(e)}")
-                    # Delete the invalid token.pickle file
-                    if os.path.exists('token.pickle'):
-                        os.remove('token.pickle')
+                    print(f"Error refreshing credentials: {e}")
+                    # No need to delete here, we'll do it on the API call
                     return False
             else:
                 try:
                     flow = InstalledAppFlow.from_client_secrets_file(
-                        'credentials.json', SCOPES)
+                        str(credentials_path), SCOPES)
                     creds = flow.run_local_server(port=0)
                 except Exception as e:
-                    print(f"Error during authentication: {str(e)}")
-                    print("Please make sure you've set up the OAuth consent screen and added your email as a test user")
+                    print(f"Error during authentication: {e}")
                     return False
 
-            # Save the credentials for the next run
-            with open('token.pickle', 'wb') as token:
+            with open(token_path, 'wb') as token:
                 pickle.dump(creds, token)
 
-        # Create Gmail API service
         service = build('gmail', 'v1', credentials=creds)
-
-        # Create message
         message = MIMEText(email_body)
         message['to'] = recipient
         message['subject'] = email_subject
         raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
-        
-        # Send message
-        service.users().messages().send(
-            userId='me',
-            body={'raw': raw_message}
-        ).execute()
-        print("Email sent successfully!")
-        return True
+
+        # --- Try/Except around API call ---
+        try:
+            service.users().messages().send(userId='me', body={'raw': raw_message}).execute()
+            print("Email sent successfully!")
+            return True
+        except HttpError as error:  # Catch HttpError specifically
+            if "Insufficient Permission" in str(error):
+                print(f"Error: Insufficient permissions to send email.  Deleting {token_path} and re-authenticating.")
+                token_path.unlink()  # Delete the token
+                return False  # Indicate failure
+            else:
+                print(f"An unexpected error occurred: {error}")
+                return False
+        # --- End Try/Except ---
 
     except Exception as e:
-        print(f"Error sending email: {str(e)}")
+        print(f"Error in send_email: {e}")
         return False
 
 
 def add_calendar_event(event_name: str, event_date: str, shared_with: str, event_start_time: str = "00:00", event_end_time: str = "23:59") -> bool:
     """
-    Method which uses Google Calendar API to add an event to the calendar
-    :param event_name: Name of the event
-    :param event_date: Date of the event
-    :param event_start_time: Start time of the event
-    :param event_end_time: End time of the event
-    :param shared_with: Email address of the person to share the event with
-    :return: True if the event is added successfully, False otherwise
+    Method which uses Google Calendar API to add an event to the calendar.
     """
     try:
-        # Check if credentials.json exists
-        if not os.path.exists('credentials.json'):
-            print("Error: credentials.json file not found. Please follow the setup instructions.")
+        # Construct absolute paths
+        credentials_path = Path(__file__).resolve().parent / 'credentials.json'
+        token_path = Path(__file__).resolve().parent / 'token.pickle'
+
+        if not credentials_path.exists():
+            print(f"Error: credentials.json not found at {credentials_path}.")
             return False
 
-        # Define the scopes for both Gmail and Calendar
+        # Always use combined scopes
         SCOPES = [
+            'https://www.googleapis.com/auth/gmail.send',  # Include Gmail!
             'https://www.googleapis.com/auth/calendar',
             'https://www.googleapis.com/auth/calendar.events'
         ]
         creds = None
 
-        # The file token.pickle stores the user's access and refresh tokens
-        if os.path.exists('token.pickle'):
-            with open('token.pickle', 'rb') as token:
+        if token_path.exists():
+            with open(token_path, 'rb') as token:
                 creds = pickle.load(token)
 
-        # If there are no (valid) credentials available, let the user log in.
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
                 try:
                     creds.refresh(Request())
                 except Exception as e:
-                    print(f"Error refreshing credentials: {str(e)}")
-                    # Delete the invalid token.pickle file
-                    if os.path.exists('token.pickle'):
-                        os.remove('token.pickle')
+                    print(f"Error refreshing credentials: {e}")
+                     # No need to delete here, we'll do it on the API call
                     return False
             else:
                 try:
                     flow = InstalledAppFlow.from_client_secrets_file(
-                        'credentials.json', SCOPES)
+                        str(credentials_path), SCOPES)
                     creds = flow.run_local_server(port=0)
                 except Exception as e:
-                    print(f"Error during authentication: {str(e)}")
-                    print("Please make sure you've set up the OAuth consent screen and added your email as a test user")
+                    print(f"Error during authentication: {e}")
                     return False
 
-            # Save the credentials for the next run
-            with open('token.pickle', 'wb') as token:
+            with open(token_path, 'wb') as token:
                 pickle.dump(creds, token)
 
-        # Create a Calendar API service
         service = build('calendar', 'v3', credentials=creds)
-
-        # Parse date and times
-        date_format = "%Y-%m-%d"
         time_format = "%I:%M %p"
-        
+
         try:
-            event_date_obj = datetime.strptime(event_date, date_format)
+            event_date_obj = parser.parse(event_date)
             start_time_obj = datetime.strptime(event_start_time, time_format)
             end_time_obj = datetime.strptime(event_end_time, time_format)
         except ValueError as e:
-            print(f"Error parsing date/time: {str(e)}")
-            print("Please use format YYYY-MM-DD for date and HH:MM AM/PM for time")
+            print(f"Error parsing date/time: {e}")
             return False
 
-        start_datetime = event_date_obj.replace(
-            hour=start_time_obj.hour,
-            minute=start_time_obj.minute
-        )
-        end_datetime = event_date_obj.replace(
-            hour=end_time_obj.hour,
-            minute=end_time_obj.minute
-        )
+        start_datetime = event_date_obj.replace(hour=start_time_obj.hour, minute=start_time_obj.minute)
+        end_datetime = event_date_obj.replace(hour=end_time_obj.hour, minute=end_time_obj.minute)
 
         event = {
             'summary': event_name,
-            'start': {
-                'dateTime': start_datetime.isoformat(),
-                'timeZone': 'Asia/Kolkata',  # Using IST timezone
-            },
-            'end': {
-                'dateTime': end_datetime.isoformat(),
-                'timeZone': 'Asia/Kolkata',  # Using IST timezone
-            },
-            'attendees': [
-                {'email': shared_with},
-            ],
+            'start': {'dateTime': start_datetime.isoformat(), 'timeZone': 'Asia/Kolkata'},
+            'end': {'dateTime': end_datetime.isoformat(), 'timeZone': 'Asia/Kolkata'},
+            'attendees': [{'email': shared_with}],
         }
 
-        # Add event to calendar
-        event = service.events().insert(calendarId='primary', body=event).execute()
-        print(f"Event created successfully: {event.get('htmlLink')}")
-        return True
+        # --- Try/Except around API call ---
+        try:
+            event = service.events().insert(calendarId='primary', body=event).execute()
+            print(f"Event created successfully: {event.get('htmlLink')}")
+            return True
+        except HttpError as error:  # Catch HttpError specifically
+            if "Insufficient Permission" in str(error):
+                print(f"Error: Insufficient permissions to add calendar event. Deleting {token_path} and re-authenticating.")
+                token_path.unlink()  # Delete the token
+                return False  # Indicate failure
+            else:
+                print(f"An unexpected error occurred: {error}")
+                return False
+        # --- End Try/Except ---
 
     except Exception as e:
-        print(f"Error adding calendar event: {str(e)}")
+        print(f"Error in add_calendar_event: {e}")
         return False
 
 

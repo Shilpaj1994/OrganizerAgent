@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List
+import subprocess
 
 # Third-party imports
 import yfinance as yf
@@ -307,44 +308,26 @@ def add_calendar_event(event_name: str, event_date: str, shared_with: str, event
         return False
 
 
-def share_stock_market_data(stock_symbol: str, time_period: str="1d") -> bool:
+def send_daily_stock_update(stock_symbol: str = "NVDA", recipient: str = None, scheduled_time: str = "17:00") -> dict:
     """
-    Method which uses Yahoo Finance API to get the stock market data
-    :param stock_symbol: Symbol of the stock
-    :param time_period: Time period to get the stock data for
-    :return: True if the stock data is fetched successfully, False otherwise
-    """
-    try:
-        # Get stock data
-        stock = yf.Ticker(stock_symbol)
-        
-        # Valid periods: 1d,5d,1mo,3mo,6mo,1y,2y,5y,10y,ytd,max
-        hist = stock.history(period=time_period)
-        
-        if hist.empty:
-            print(f"No data found for symbol {stock_symbol}")
-            return False
-            
-        # Save to CSV
-        output_file = f"{stock_symbol}_{time_period}_data.csv"
-        hist.to_csv(output_file)
-        
-        print(f"Stock data saved to {output_file}")
-        return True
-        
-    except Exception as e:
-        print(f"Error fetching stock data: {str(e)}")
-        return False
-
-
-def send_daily_stock_update(recipient: str, stock_symbol: str = "NVDA") -> bool:
-    """
-    Method to fetch today's stock data and send it via email
-    :param recipient: Email address to send the update to
+    Fetch today's stock data and send it via email.
+    
     :param stock_symbol: Symbol of the stock (default: NVDA)
-    :return: True if the update is sent successfully, False otherwise
+    :param recipient: Email address to send the update to (required)
+    :param scheduled_time: Time to send the update in 24-hour format (default: "17:00")
+    :return: Dictionary with status code and response message
     """
     try:
+        # Validate required parameters
+        if not recipient:
+            return {
+                'statusCode': 400,
+                'body': 'Recipient email is required'
+            }
+
+        # Get current time
+        current_time = datetime.now()
+        
         # Get stock data
         stock = yf.Ticker(stock_symbol)
         
@@ -352,8 +335,10 @@ def send_daily_stock_update(recipient: str, stock_symbol: str = "NVDA") -> bool:
         hist = stock.history(period="1d")
         
         if hist.empty:
-            print(f"No data found for symbol {stock_symbol}")
-            return False
+            return {
+                'statusCode': 404,
+                'body': f"No data found for symbol {stock_symbol}"
+            }
         
         # Format the email body
         current_price = hist['Close'].iloc[-1]
@@ -369,7 +354,9 @@ def send_daily_stock_update(recipient: str, stock_symbol: str = "NVDA") -> bool:
         email_body = f"""
 Daily Stock Update for {stock_symbol}
 
-Date: {datetime.now().strftime('%Y-%m-%d')}
+Date: {current_time.strftime('%Y-%m-%d')}
+Time: {current_time.strftime('%H:%M')}
+
 Current Price: ${current_price:.2f}
 Open Price: ${open_price:.2f}
 High: ${high_price:.2f}
@@ -382,9 +369,37 @@ Note: All prices are in USD.
 """
         
         # Send email
-        email_subject = f"Daily Stock Update - {stock_symbol} - {datetime.now().strftime('%Y-%m-%d')}"
-        return send_email(email_subject, email_body, recipient)
+        email_subject = f"Daily Stock Update - {stock_symbol} - {current_time.strftime('%Y-%m-%d %H:%M')}"
+        success = send_email(email_subject, email_body, recipient)
+        
+        if success:
+            return {
+                'statusCode': 200,
+                'body': 'Stock update sent successfully'
+            }
+        else:
+            return {
+                'statusCode': 500,
+                'body': 'Failed to send stock update'
+            }
         
     except Exception as e:
         print(f"Error sending stock update: {str(e)}")
-        return False
+        return {
+            'statusCode': 500,
+            'body': f'Error: {str(e)}'
+        }
+
+
+def schedule_mail(recipient: str, stock_symbol: str = "NVDA", scheduled_time: str = "17:00") -> bool:
+    """
+    Schedule a mail to be sent at a given time.
+    :param recipient: Email address to send the update to
+    :param stock_symbol: Symbol of the stock
+    :param scheduled_time: Time to send the update (default: 17:00)
+    :return: True if successful, False otherwise
+    """
+    # Start the scheduler.py in a new process
+    scheduler_path = Path(__file__).parent / "scheduler.py"
+    subprocess.run(["python", str(scheduler_path), "--recipient", recipient, "--stock_symbol", stock_symbol, "--scheduled_time", scheduled_time])
+    return True

@@ -401,5 +401,5 @@ def schedule_daily_stock_update(recipient: str, stock_symbol: str = "NVDA", sche
     """
     # Start the scheduler.py in a new process
     scheduler_path = Path(__file__).parent / "scheduler.py"
-    subprocess.run(["python", str(scheduler_path), "--recipient", recipient, "--stock_symbol", stock_symbol, "--scheduled_time", scheduled_time])
+    subprocess.Popen(["python", str(scheduler_path), "--recipient", recipient, "--stock_symbol", stock_symbol, "--scheduled_time", scheduled_time], start_new_session=True)
     return True

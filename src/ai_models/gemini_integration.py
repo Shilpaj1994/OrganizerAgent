@@ -65,22 +65,17 @@ class GeminiIntegration(AIIntegration):
             print(f"API Error: {str(e)}")
             return None
 
-    def extract_function_call(self, response: str) -> OrderedDict:
+    def extract_function_call(self, response: str, valid_function_names: set) -> OrderedDict:
         """
         Extracts function calls from the Gemini API response.  Handles both
         'function_call' objects and text-based function calls.  Robustly
         handles extra text or newlines.
 
         :param response: The response from the Gemini API.
+        :param valid_function_names: Set of valid function names
         :return: An OrderedDict containing function call details, preserving order.
         """
         ordered_function_calls = OrderedDict()
-        valid_function_names = {
-            "get_directory_name", "scan_directory", "identify_file_types",
-            "organize_files_by_type", "compress_pdf", "compress_image",
-            "extract_info_from_todo", "send_email", "add_calendar_event",
-            "send_daily_stock_update"
-        }  # Add this set of valid names
 
         try:
             for candidate in response.candidates:

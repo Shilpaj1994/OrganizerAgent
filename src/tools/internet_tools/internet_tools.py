@@ -9,25 +9,24 @@ import base64
 import os
 from pathlib import Path
 from datetime import datetime
+from typing import Dict, List
 
 # Third-party imports
 import yfinance as yf
+import pickle
+import convertapi
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from email.mime.text import MIMEText
-import pickle
-
-# Third-party imports
-import convertapi
 
 
-def compress_pdf(file_path: str) -> bool:
+def compress_pdf(file_paths: Dict[str, List[str]]) -> bool:
     """
     Compresses a PDF file using ConvertAPI.
 
-    :param file_path: The path to the PDF file.
+    :param file_paths: A dictionary with keys as the folder names and values as the file path inside the folder.
     :return: True if compression was successful, False otherwise.
     """
     try:
@@ -36,35 +35,52 @@ def compress_pdf(file_path: str) -> bool:
         if not convertapi.api_credentials:
             raise ValueError("Error: CONVERT_API_KEY environment variable not set!")
 
-        if not file_path:
-            raise ValueError("Error: file_path is None or empty!")
+        if not file_paths:
+            print("Warning: compress_pdf called with an empty dictionary.")
+            return True  # Return True for empty dict (no-op)
 
-        # Perform the compression
-        result = convertapi.convert('compress', {
-            'File': str(file_path)
-        }, from_format='pdf')
+        for folder, paths in file_paths.items():
+            for file_path in paths:
+                try:
+                    if not Path(file_path).is_file():
+                        print(f"Warning: '{file_path}' in folder '{folder}' is not a valid file path. Skipping.")
+                        continue  # Skip invalid paths
 
-        if not result or not result.files:
-            raise ValueError("Conversion failed, no output files received.")
+                    # Check if file is PDF
+                    if not file_path.lower().endswith('.pdf'):
+                        print(f"Warning: '{file_path}' is not a PDF file. Skipping.")
+                        continue
 
-        # Save to a new file with '_compressed' suffix
-        output_path = str(Path(file_path).with_suffix('')) + '_compressed' + Path(file_path).suffix
-        output_files = result.save_files(output_path)
+                    # Perform the compression
+                    result = convertapi.convert('compress', {
+                        'File': file_path  # Pass individual file path
+                    }, from_format='pdf')
 
-        if not output_files:
-            raise ValueError("Failed to save the compressed PDF.")
-        return True
+                    if not result or not result.files:
+                        print(f"Conversion failed for {file_path} in folder '{folder}', no output files received.")
+                        continue # Skip to the next file
+
+                    # Save to a new file with '_compressed' suffix
+                    output_path = str(Path(file_path).with_suffix('')) + '_compressed' + Path(file_path).suffix
+                    result.file.save(output_path) # Use .file (singular)
+                    print(f"Compressed: {file_path} -> {output_path}")
+
+                except Exception as e:
+                    print(f"Error compressing {file_path} in folder '{folder}': {e}")
+                    return False  # Return False on any error within the loop
+
+        return True  # Return True only if all files processed successfully
 
     except Exception as e:
-        print(f"Error compressing PDF: {e}")
+        print(f"Error in compress_pdf: {e}")
         return False
 
 
-def compress_image(file_path: str) -> bool:
+def compress_image(file_paths: Dict[str, List[str]]) -> bool:
     """
-    Compresses an image file using ConvertAPI.
-    :param file_path: The path to the image file.
-    :return: True if compression was successful, False otherwise.
+    Compresses image files using PDFShift API.
+    :param file_paths: A dictionary with keys as folder names and values as list of file paths
+    :return: True if compression was successful, False otherwise
     """
     try:
         # Set API credentials
@@ -72,41 +88,59 @@ def compress_image(file_path: str) -> bool:
         if not convertapi.api_credentials:
             raise ValueError("Error: CONVERT_API_KEY environment variable not set!")
 
-        # Get file extension (without the dot)
-        file_ext = Path(file_path).suffix.lower()[1:]
-        
-        # Validate supported formats
-        supported_formats = ['jpg', 'jpeg', 'png', 'gif', 'webp']
-        if file_ext.lower() not in supported_formats:
-            print(f"Unsupported image format: {file_ext}")
-            return False
+        if not file_paths:
+            print("Warning: compress_image called with an empty dictionary")
+            return True
 
-        # Convert using the same format for input and output
-        result = convertapi.convert(
-            file_ext,  # Output format same as input
-            {
-                'File': file_path,
-                'quality': 75  # Compression quality (1-100)
-            },
-            from_format=file_ext  # Input format
-        )
+        for folder, paths in file_paths.items():
+            for file_path in paths:
+                try:
+                    if not Path(file_path).is_file():
+                        print(f"Warning: '{file_path}' in folder '{folder}' is not a valid file path. Skipping.")
+                        continue
 
-        # Save to a new file with '_compressed' suffix
-        output_path = str(Path(file_path).with_suffix('')) + '_compressed' + Path(file_path).suffix
-        result.save_files(output_path)
-        return True
+                    # Get file extension
+                    file_ext = Path(file_path).suffix.lower()[1:]
+                    if file_ext.lower() not in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
+                        print(f"Warning: '{file_path}' is not a supported image format. Skipping.")
+                        continue
+
+                    # Convert using the same format for input and output
+                    result = convertapi.convert(
+                        file_ext,
+                        {
+                            'File': file_path,
+                            'quality': 75
+                        },
+                        from_format=file_ext  # Input format
+                    )
+
+                    if not result or not result.files:
+                        print(f"Conversion failed for {file_path} in folder '{folder}', no output files received.")
+                        continue
+
+                    # Save to a new file with '_compressed' suffix
+                    output_path = str(Path(file_path).with_suffix('')) + '_compressed' + Path(file_path).suffix
+                    result.file.save(output_path)
+                    print(f"Compressed: {file_path} -> {output_path}")
+
+                except Exception as e:
+                    print(f"Error compressing {file_path} in folder '{folder}': {e}")
+                    return False  # Return False on any error within the loop
+
+        return True  # Return True only if all files processed successfully
 
     except Exception as e:
-        print(f"Error compressing image: {e}")
+        print(f"Error in compress_image: {str(e)}")
         return False
     
 
-def send_email(email_subject: str, email_body: str, email_address: str="shilpajbhalerao1994@gmail.com") -> bool:
+def send_email(email_subject: str, email_body: str, recipient: str) -> bool:
     """
     Method which uses Gmail API to send an email
-    :param email_address: Email address to send the email to
     :param email_subject: Subject of the email
     :param email_body: Body of the email
+    :param recipient: Email address to send the email to
     :return: True if the email is sent successfully, False otherwise
     """
     try:
@@ -153,7 +187,7 @@ def send_email(email_subject: str, email_body: str, email_address: str="shilpajb
 
         # Create message
         message = MIMEText(email_body)
-        message['to'] = email_address
+        message['to'] = recipient
         message['subject'] = email_subject
         raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
         
@@ -162,8 +196,7 @@ def send_email(email_subject: str, email_body: str, email_address: str="shilpajb
             userId='me',
             body={'raw': raw_message}
         ).execute()
-
-        print(f"Email sent successfully to {email_address}")
+        print("Email sent successfully!")
         return True
 
     except Exception as e:
@@ -171,15 +204,14 @@ def send_email(email_subject: str, email_body: str, email_address: str="shilpajb
         return False
 
 
-def add_calendar_event(event_name: str, event_date: str, event_start_time: str="12:00 AM", 
-                      event_end_time: str="12:00 PM", shared_with: str="shilpajbhalerao1994@gmail.com") -> bool:
+def add_calendar_event(event_name: str, event_date: str, shared_with: str, event_start_time: str = "00:00", event_end_time: str = "23:59") -> bool:
     """
     Method which uses Google Calendar API to add an event to the calendar
     :param event_name: Name of the event
     :param event_date: Date of the event
     :param event_start_time: Start time of the event
     :param event_end_time: End time of the event
-    :param shared_with: Email address to share the event with
+    :param shared_with: Email address of the person to share the event with
     :return: True if the event is added successfully, False otherwise
     """
     try:
@@ -225,6 +257,7 @@ def add_calendar_event(event_name: str, event_date: str, event_start_time: str="
             with open('token.pickle', 'wb') as token:
                 pickle.dump(creds, token)
 
+        # Create a Calendar API service
         service = build('calendar', 'v3', credentials=creds)
 
         # Parse date and times
@@ -264,6 +297,7 @@ def add_calendar_event(event_name: str, event_date: str, event_start_time: str="
             ],
         }
 
+        # Add event to calendar
         event = service.events().insert(calendarId='primary', body=event).execute()
         print(f"Event created successfully: {event.get('htmlLink')}")
         return True
@@ -303,11 +337,11 @@ def share_stock_market_data(stock_symbol: str, time_period: str="1d") -> bool:
         return False
 
 
-def send_daily_stock_update(stock_symbol: str = "NVDA", email_address: str = "shilpajbhalerao1994@gmail.com") -> bool:
+def send_daily_stock_update(recipient: str, stock_symbol: str = "NVDA") -> bool:
     """
     Method to fetch today's stock data and send it via email
+    :param recipient: Email address to send the update to
     :param stock_symbol: Symbol of the stock (default: NVDA)
-    :param email_address: Email address to send the update to
     :return: True if the update is sent successfully, False otherwise
     """
     try:
@@ -349,7 +383,7 @@ Note: All prices are in USD.
         
         # Send email
         email_subject = f"Daily Stock Update - {stock_symbol} - {datetime.now().strftime('%Y-%m-%d')}"
-        return send_email(email_subject, email_body, email_address)
+        return send_email(email_subject, email_body, recipient)
         
     except Exception as e:
         print(f"Error sending stock update: {str(e)}")

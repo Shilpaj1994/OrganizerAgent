@@ -46,12 +46,16 @@ class Agent:
     # Create a dictionary for argument mapping (make it an instance variable)
     arg_mapping = {
         'email_address': 'recipient',
-        'email_subject': 'subject',
-        'email_body': 'body',
-        'event_date': 'date',
-        'event_start_time': 'time',
-        'shared_with': 'attendees',
-        'stock_symbol': 'symbol'
+        'email_subject': 'email_subject',
+        'email_body': 'email_body',
+        'event_name': 'event_name',
+        'event_date': 'event_date',
+        'event_start_time': 'event_start_time',
+        'event_end_time': 'event_end_time',
+        'shared_with': 'shared_with',
+        'stock_symbol': 'stock_symbol',
+        'scheduled_time': 'scheduled_time',
+        'recipient': 'recipient'
     }
 
     def __init__(self, ai_provider: str = "gemini"):

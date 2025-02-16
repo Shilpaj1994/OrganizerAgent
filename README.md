@@ -2,42 +2,21 @@
 
 In this project, an organizer agent is created to organize files in the different folders based on their categories. This agent is also used to send emails, create and share calendar invite and also share stock price everyday at specified time.
 
+![Organizer Agent Architecture](./assets/OrgAgent.png)
+
 
 
 ## Features
-- [x] Prompt the LLM to organize a folder for me
-- [x] LLM will ask for the folder address
-- [x] It will take folder address as input
+
+- [x] Take folder address as input
 - [x] List all the files in that folder
 - [x] Categorize the files into different folders based on their type
 - [x] Use online service to compress the pdf files
 - [x] Use online service to compress the images
-- [x] If there's a file names `todo.txt`, read the file and process the tasks
+- [x] If there's a file names `todo.txt` on the **Desktop**, read the file and process the tasks
     - [x] Send an email to the user at given time about the task
     - [x] Add a calendar invite for the mentioned date and shared it with the given address
     - [x] Share the stock price of the given stock at 5PM via email (daily)
-
-
-
-## TODO
-
-- [ ] Internet tools
-    - [x] Compress PDF
-    - [x] Compress Image
-    - [x] Calendar tools
-    - [x] Email tools
-    - [x] Stock tools
-
-- [ ] System tools
-    - [x] List all the files in a folder
-    - [x] Categorize the files into different folders based on their type
-
-
-> Basically, all these are different states and we have to build the behavior dynamically using the LLM. Each state should return a boolean value to indicate if the state is completed or not. If completed, the next state should be executed. If not completed, throw the error value OR ask LLM to provide fallback action.
-
-- [x] Prompt the behavior that needs to be executed
-
-
 
 
 
@@ -92,6 +71,9 @@ export COVERT_API_KEY='your_convertapi_key'
 
 Replace `'your_gemini_api_key'`, `'your_convertapi_key'` with your actual API keys.
 
+- **Gemini:** Obtain your API key from [Google AI Studio](https://ai.google.dev/).
+- **ConvertAPI:** Sign up for an API key at [ConvertAPI](https://www.convertapi.com/).  This is used for PDF and image compression.
+
 
 
 ### 4. Google Cloud Project Setup (for Gmail and Calendar)
@@ -129,20 +111,38 @@ The `send_email` and `add_calendar_event` functions use the Google Gmail and Cal
 
 Once you've completed the setup steps:
 
-
-
-
-
-
-
-### Keys
-
 ```bash
-# Google Studio
-export GEMINI_API_KEY='your_key_here'
+# Make sure you're in the project root and activate virtual environment
+source .venv/bin/activate
 
-# ilovepdf and TinyPNG Keys
-export ILOVEPDF_API_KEY='your_key_here'
-export TINYPNG_API_KEY='your_key_here'
+# Run the agent
+python src/agent.py
 ```
 
+
+
+---
+
+
+
+## Operation
+
+### Unorganized Directory
+
+![Unorganized directory](./assets/unorganized.png)
+
+and `todo.txt` on the **Desktop**
+
+![TODO](./assets/todo.png)
+
+
+
+### Organizer Agent
+
+![Organized](./assets/organized.png)
+
+![Email](./assets/email.png)
+
+![Calendar](./assets/calendar.png)
+
+![Stock price mail](./assets/stock_mail.png)

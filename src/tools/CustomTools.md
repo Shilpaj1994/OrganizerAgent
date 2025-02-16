@@ -1,61 +1,45 @@
 # Custom Tools
 
+- Tools are the function provided to the AI model which can be used to achieve the task
 
-
-If you want to write your own tools and add them to the LLM, follow the below instructions
-
-
+- If you want to write your own tools and add them to the repository, follow the below instructions
 
 - The tool should be a Python function
 
+- It should have annotations i.e. datatypes and return value should be mentioned
+
+- The function should contain docstrings i.e. detailed description of the function along with the arguments description and return value
+
+- Below is the Python function which can be used as a Tool
+
   ```python
-  from tool import Tool
-  
-  class NewTool(Tool):
-      name = "Name which LLM will use for this tool"
-      description = "Description of the class"
-      inputs = {"arg": {"type": "int", "description": "What is this param and why it is used"}}
-      output_type = "bool"
-      
-      def forward(self, arg: int, arg2: str) -> bool:
-          return True
+      def get_user(self, key: str, value: str) -> None:
+          """
+          Looks up a user by email, phone, or username.
+          
+          :param key: The attribute to search for a user by (email, phone, or username).
+          :param value: The value to match for the specified attribute.
+          :return: 
+          """
+          if key in {"email", "phone", "username"}:
+              for customer in self.customers:
+                  if customer[key] == value:
+                      return customer
+              return f"Couldn't find a user with {key} of {value}"
+          else:
+              raise ValueError(f"Invalid key: {key}")
+          
+          return None
   ```
 
-
-
-Either do this OR
-
-
-
-```python
-    def get_user(self, key: str, value: str) -> None:
-        """
-        Looks up a user by email, phone, or username.
-        
-        :param key: The attribute to search for a user by (email, phone, or username).
-        :param value: The value to match for the specified attribute.
-        :return: 
-        """
-        if key in {"email", "phone", "username"}:
-            for customer in self.customers:
-                if customer[key] == value:
-                    return customer
-            return f"Couldn't find a user with {key} of {value}"
-        else:
-            raise ValueError(f"Invalid key: {key}")
-        
-        return None
-```
-
-
-
-- Once the function is written in this format, use another class to extract the information from this function and arrange it in a schema to send to the LLMs
+- Once the function is written in this format, use `create_schema()`  to convert this Python code to a tool which can be used by an AI model
 
   ```python
+  # Import to convert Python function into a AI compatible tool
   from tools import create_schema
   
   # Code to extract the information and put it in the required schema
-  output_schema = create_schema(get_user)
+  user_tool = create_schema(get_user, tool_type='gemini')
   ```
 
-- Now, pass this output schema to the LLM
+- Now, this can be passed to the API of the AI model

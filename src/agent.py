@@ -6,6 +6,7 @@ Date: Feb 9, 2025
 """
 # Standard Library Imports
 import os
+from pathlib import Path
 from collections import OrderedDict
 from typing import Any
 
@@ -17,8 +18,7 @@ from ai_models import GeminiIntegration, DeepSeekIntegration, OpenAIIntegration
 from tools import (get_directory_name, scan_directory, identify_file_types,
                    organize_files_by_type, compress_image, compress_pdf,
                    create_schema, send_email, add_calendar_event,
-                   share_stock_market_data, send_daily_stock_update,
-                   extract_info_from_todo)
+                   schedule_daily_stock_update)
 from prompts import organizer_prompt
 
 load_dotenv()
@@ -40,9 +40,7 @@ class Agent:
         "compress_pdf": compress_pdf,
         "send_email": send_email,
         "add_calendar_event": add_calendar_event,
-        "share_stock_market_data": share_stock_market_data,
-        "send_daily_stock_update": send_daily_stock_update,
-        "extract_info_from_todo": extract_info_from_todo,
+        "schedule_daily_stock_update": schedule_daily_stock_update,
     }
 
     # Create a dictionary for argument mapping (make it an instance variable)
@@ -79,9 +77,7 @@ class Agent:
             create_schema(compress_pdf),
             create_schema(send_email),
             create_schema(add_calendar_event),
-            create_schema(share_stock_market_data),
-            create_schema(send_daily_stock_update),
-            create_schema(extract_info_from_todo),
+            create_schema(schedule_daily_stock_update),
         ]
         return tools
 
@@ -117,8 +113,14 @@ class Agent:
             # Initialize the AI model
             self._initialize_ai_model(tools)
 
-            # Create the prompt
-            prompt = organizer_prompt()
+            # Create the prompt with the todo list (if it exists on the desktop)
+            todo_list = []
+            # Check if todo.txt exists on the desktop
+            desktop_path = Path.home() / "Desktop"
+            if (desktop_path / "todo.txt").exists():
+                with open(desktop_path / "todo.txt", "r") as file:
+                    todo_list = file.readlines()
+            prompt = organizer_prompt(todo_list)
             print(f"{100 * '='} Prompt {100 * '='}")
             print(f"{prompt}\n")
             print(f"{200 * '='}")
@@ -132,7 +134,7 @@ class Agent:
             print(f"{200 * '='}")
 
             # Extract the function calls from the response
-            function_calls = self.ai_model.extract_function_call(response)
+            function_calls = self.ai_model.extract_function_call(response, set(self.function_map.keys()))
             if not isinstance(function_calls, OrderedDict):
                 raise TypeError(f"Expected OrderedDict, got {type(function_calls)}")
 

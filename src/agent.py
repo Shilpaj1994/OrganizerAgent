@@ -10,11 +10,18 @@ from collections import OrderedDict
 from typing import Any
 
 # Third Party Imports
+from dotenv import load_dotenv
 
 # Local Imports
 from ai_models import GeminiIntegration, DeepSeekIntegration, OpenAIIntegration
-from tools import get_directory_name, scan_directory, identify_file_types, organize_files_by_type, compress_image, compress_pdf, create_schema, send_email, add_calendar_event, share_stock_market_data, send_daily_stock_update
+from tools import (get_directory_name, scan_directory, identify_file_types,
+                   organize_files_by_type, compress_image, compress_pdf,
+                   create_schema, send_email, add_calendar_event,
+                   share_stock_market_data, send_daily_stock_update,
+                   extract_info_from_todo)
 from prompts import organizer_prompt
+
+load_dotenv()
 
 
 class Agent:
@@ -22,6 +29,32 @@ class Agent:
     Class to create prompts with tools and send them to AI models. Get the response and process it.
     """
     __slots__ = ['ai_model', 'ai_provider']
+
+    # Function and argument mapping (instance variables)
+    function_map = {
+        "get_directory_name": get_directory_name,
+        "scan_directory": scan_directory,
+        "identify_file_types": identify_file_types,
+        "organize_files_by_type": organize_files_by_type,
+        "compress_image": compress_image,
+        "compress_pdf": compress_pdf,
+        "send_email": send_email,
+        "add_calendar_event": add_calendar_event,
+        "share_stock_market_data": share_stock_market_data,
+        "send_daily_stock_update": send_daily_stock_update,
+        "extract_info_from_todo": extract_info_from_todo,
+    }
+
+    # Create a dictionary for argument mapping (make it an instance variable)
+    arg_mapping = {
+        'email_address': 'recipient',
+        'email_subject': 'subject',
+        'email_body': 'body',
+        'event_date': 'date',
+        'event_start_time': 'time',
+        'shared_with': 'attendees',
+        'stock_symbol': 'symbol'
+    }
 
     def __init__(self, ai_provider: str = "gemini"):
         """
@@ -47,7 +80,8 @@ class Agent:
             create_schema(send_email),
             create_schema(add_calendar_event),
             create_schema(share_stock_market_data),
-            create_schema(send_daily_stock_update)
+            create_schema(send_daily_stock_update),
+            create_schema(extract_info_from_todo),
         ]
         return tools
 
@@ -66,7 +100,7 @@ class Agent:
 
         if self.ai_provider not in ai_providers:
             raise ValueError(f"Unsupported AI provider: {self.ai_provider}")
-        
+
         self.ai_model = ai_providers[self.ai_provider]()
 
     def process_response(self) -> None:
@@ -74,18 +108,22 @@ class Agent:
         Processes the response from the AI model.
         """
         try:
+            # Collect tools
             tools = self.collect_tools()
             print(f"{100 * '='} Tools {100 * '='}")
             [print(f"{tool}\n") for tool in tools]
             print(f"{200 * '='}")
 
+            # Initialize the AI model
             self._initialize_ai_model(tools)
 
+            # Create the prompt
             prompt = organizer_prompt()
             print(f"{100 * '='} Prompt {100 * '='}")
             print(f"{prompt}\n")
             print(f"{200 * '='}")
 
+            # Generate the response
             response = self.ai_model.generate_response(prompt)
             if response is None:
                 raise ValueError("No response received from AI model")
@@ -93,14 +131,17 @@ class Agent:
             print(f"{response}\n")
             print(f"{200 * '='}")
 
+            # Extract the function calls from the response
             function_calls = self.ai_model.extract_function_call(response)
             if not isinstance(function_calls, OrderedDict):
                 raise TypeError(f"Expected OrderedDict, got {type(function_calls)}")
 
+            # Print the function calls to be executed
             print(f"{100 * '='} Function to be executed {100 * '='}")
             [print(f"{call_id + 1}. {function_call} with args: {function_call['args']}") for call_id, function_call in enumerate(function_calls.values())]
             print(f"{200 * '='}")
 
+            # Execute the function calls
             self.execute_function_calls(function_calls)
 
         except Exception as e:
@@ -109,56 +150,73 @@ class Agent:
     def execute_function_calls(self, function_calls: OrderedDict) -> None:
         """
         Executes a sequence of function calls, handling dependencies.
-        :param function_calls: An OrderedDict of function calls.
         """
-        results = {}  # Store results of function calls
+        results = {}
+        current_path = None
         print(f"{100 * '='} Actions {100 * '='}")
+
         try:
-            count = 1
             for call_id, function_call in function_calls.items():
-                count += 1
-                if not all(key in function_call for key in ['name', 'args']):
-                    raise KeyError(f"Function call {call_id} missing 'name' or 'args'")
-
-                # Get the function name
                 function_name = function_call['name']
+                args = function_call['args']
 
-                # If it's get_directory_name, call it and store the result
-                if function_name == 'get_directory_name':
-                    current_path = self.dispatch_function(function_call)
-                    results[call_id] = current_path  # Store the result
-                    print(f"Result of {function_name}: {current_path}")
-                    continue  # Move to the next function call
+                # Prepare arguments (mapping and path)
+                mapped_args = self.prepare_arguments(function_call)
 
-                # For other functions, prepare arguments
-                mapped_args = self.prepare_arguments(function_call, current_path)
-
-                # Substitute results from previous calls if needed
+                # Handle result substitution
                 for arg_name, arg_value in mapped_args.items():
                     if isinstance(arg_value, str) and arg_value.startswith('<result_from_'):
-                        # Extract the call ID from the placeholder
                         source_call_id = arg_value[len('<result_from_'):-1]
-                        # Get result from previous call
                         if source_call_id in results:
                             mapped_args[arg_name] = results[source_call_id]
                         else:
                             raise ValueError(f"Result from call ID '{source_call_id}' not found!")
 
-                # Call the function with prepared arguments
+                # --- Special handling for extract_info_from_todo ---
+                if function_name == "extract_info_from_todo":
+                    if 'file_path' in mapped_args:
+                        # Find todo.txt in the file list
+                        file_list = mapped_args['file_path']
+                        todo_file_path = None
+                        for f_path in file_list:
+                            if os.path.basename(f_path) == 'todo.txt':
+                                todo_file_path = f_path
+                                break
+                        if todo_file_path:
+                            mapped_args['file_path'] = todo_file_path
+                            todo_tasks = self.dispatch_function({'name': function_name, 'args': mapped_args})
+                            results[call_id] = todo_tasks
+
+                            # Immediately execute extracted tasks
+                            if todo_tasks:
+                                for task_name, task_args in todo_tasks:
+                                    task_result = self.dispatch_function({'name': task_name, 'args': task_args})
+                                    print(f"Result of (todo) {task_name}: {task_result}")
+                        else:
+                            print("Warning: todo.txt not found.")
+                    continue  # Skip to the next function call
+
+                # --- Dynamic dispatch for all other functions ---
                 result = self.dispatch_function({'name': function_name, 'args': mapped_args})
-                results[call_id] = result  # Store the result
-                print(f"{count}. Result of {function_name}: {result}\n")
-                # print(f"Result of {function_name}: {mapped_args}")
+
+                # Special handling for get_directory_name
+                if function_name == "get_directory_name":
+                    current_path = result
+
+                results[call_id] = result
+                print(f"\nResult of {function_name}: {result}")
 
         except Exception as e:
             print(f"Error executing functions: {e}")
         finally:
             print(f"{200 * '='}")
 
-    def prepare_arguments(self, function_call: OrderedDict, path: str) -> dict:
-        """Prepares arguments for a function call, including mapping and path."""
+    def prepare_arguments(self, function_call: OrderedDict) -> dict:
+        """
+        Prepares arguments: maps names, adds path if needed, handles attendees.
+        """
         function_name = function_call['name']
-        function_to_call = self.function_map[function_name]  # Access function_map directly
+        function_to_call = self.function_map[function_name]
         arguments = function_call['args']
 
         mapped_args = {}
@@ -167,71 +225,24 @@ class Agent:
             mapped_args[mapped_key] = value
             if mapped_key == 'attendees' and isinstance(value, str):
                 mapped_args[mapped_key] = [value]
-
-        if 'path' in function_to_call.__code__.co_varnames:
-            mapped_args['path'] = path
-
         return mapped_args
 
-    # Create a dictionary for function mapping (make it an instance variable)
-    function_map = {
-        "get_directory_name": get_directory_name,
-        "scan_directory": scan_directory,
-        "identify_file_types": identify_file_types,
-        "organize_files_by_type": organize_files_by_type,
-        "compress_image": compress_image,
-        "compress_pdf": compress_pdf,
-        "send_email": send_email,
-        "add_calendar_event": add_calendar_event,
-        "share_stock_market_data": share_stock_market_data,
-        "send_daily_stock_update": send_daily_stock_update
-    }
-
-    # Create a dictionary for argument mapping (make it an instance variable)
-    arg_mapping = {
-        'email_address': 'recipient',
-        'email_subject': 'subject',
-        'email_body': 'body',
-        'event_date': 'date',
-        'event_start_time': 'time',
-        'shared_with': 'attendees',
-        'stock_symbol': 'symbol'
-    }
 
     def dispatch_function(self, function_call: OrderedDict) -> Any:
         """
-        Dispatches function calls to the appropriate functions.
-
-        Args:
-            function_call: An OrderedDict containing 'name' and 'args'.
-
-        Returns:
-            The result of the function call.
-
-        Raises:
-            ValueError: If the function name is unknown.
+        Dispatches function calls.
+        :param function_call: An OrderedDict containing 'name' and 'args'.
+        :return: The result of the function call.
+        :raises ValueError: If the function name is unknown.
         """
         function_name = function_call['name']
-        if function_name not in self.function_map:
+        function_to_call = self.function_map.get(function_name)
+
+        if function_to_call is None:
             raise ValueError(f"Unknown function call: {function_name}")
 
-        function_to_call = self.function_map[function_name]
-        arguments = function_call['args']
-
-        # Argument name mapping (as before)
-        mapped_args = {}
-        for key, value in arguments.items():
-            mapped_key = self.arg_mapping.get(key, key)  # Use .get() for safety
-            mapped_args[mapped_key] = value
-
-            if mapped_key == 'attendees' and isinstance(value, str):
-                mapped_args[mapped_key] = [value]
-
-        # Add path argument ONLY if the function expects it
-        # if 'path' in function_to_call.__code__.co_varnames:
-        #     mapped_args['path'] = path
-
-        return function_to_call(**mapped_args)
+        arguments = function_call.get('args', {})
+        return function_to_call(**arguments)
 
 
 if __name__ == "__main__":
